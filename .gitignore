@@ -1,0 +1,5 @@
+.persistedshare/
+shared/
+.env
+*.env-secrets
+*user-secrets*
