@@ -535,7 +535,7 @@ Do not commit Hugging Face tokens, SEC API credentials, or other private credent
 
 ## Project Repository
 
-GitHub: https://github.com/mkchoithani/finscale
+GitHub: [https://github.com/mkchoithani/finscale](https://github.com/haranadhar/FinscaleNvidiaPlatform)
 
 ## Data and Licensing
 
