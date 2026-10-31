@@ -136,7 +136,7 @@ finscale/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/mkchoithani/finscale.git
+git clone ttps://github.com/haranadhar/FinscaleNvidiaPlatform.git
 cd finscale
 
 git status
