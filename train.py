@@ -173,7 +173,12 @@ def run_peft(args, data_dir, out_dir, prep):
     model_id=args.model
     tokenizer=AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None: tokenizer.pad_token=tokenizer.eos_token
-    model=AutoModelForCausalLM.from_pretrained(model_id, torch_dtype="auto")
+    if not torch.cuda.is_available():
+        raise RuntimeError("PEFT backend requires a CUDA-enabled NVIDIA GPU. Check nvidia-smi and PyTorch installation.")
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    model=AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=dtype)
+    model.to("cuda")
+    model.config.use_cache = False
     model.gradient_checkpointing_enable()
     model=get_peft_model(model, LoraConfig(r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=args.lora_dropout,
                                            target_modules="all-linear", task_type="CAUSAL_LM"))
