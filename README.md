@@ -129,15 +129,44 @@ finscale/
     └── train_peft.log
 ```
 
-*Note: Some NVIDIA-specific helper scripts are maintained separately from the original upstream repository and must be available in the project copy.*
+The validator and held-out conversion scripts are tracked in this repository. Generated datasets and model artifacts are not included.
+
+## Lambda Labs and RunPod deployment
+
+Both providers run the same `--backend peft` training and evaluation code. Use an NVIDIA GPU machine with a CUDA-enabled PyTorch image; the Lambda A100 40 GB is the reference baseline. GPU availability and memory differ by instance.
+
+**RunPod:** Create a GPU Pod with a PyTorch/CUDA template. For persistence, attach a Network Volume mounted at `/workspace` before cloning. Container-only storage may be lost when the Pod is removed. Store datasets, Hugging Face cache, adapters, checkpoints and results on persistent storage.
+
+```bash
+cd /workspace
+git clone https://github.com/haranadhar/FinscaleNvidiaPlatform.git
+cd FinscaleNvidiaPlatform
+export HF_HOME=/workspace/.cache/huggingface
+bash runpod-start.sh
+source .venv/bin/activate
+```
+
+**Lambda Labs:** Use the existing CUDA-enabled PyTorch installation, clone under your persistent working directory and run:
+
+```bash
+git clone https://github.com/haranadhar/FinscaleNvidiaPlatform.git
+cd FinscaleNvidiaPlatform
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Check `nvidia-smi` and `python -c "import torch; print(torch.cuda.is_available())"` before training. The repository does not contain SEC filings, generated datasets or trained LoRA adapters; restore or generate those separately. `requirements.txt` intentionally does not install PyTorch, to preserve the provider's CUDA-compatible build.
+
+**Important implementation limitation:** The current `train.py` loads the base model without explicitly moving it to CUDA or configuring `device_map`. Verify actual GPU utilization before relying on the training command. A CUDA-compatible runtime alone does not guarantee GPU training.
 
 ## Installation and Environment Setup
 
 ### 1. Clone the Repository
 
 ```bash
-git clone ttps://github.com/haranadhar/FinscaleNvidiaPlatform.git
-cd finscale
+git clone https://github.com/haranadhar/FinscaleNvidiaPlatform.git
+cd FinscaleNvidiaPlatform
 
 git status
 ```
@@ -145,7 +174,7 @@ git status
 For an existing repository:
 
 ```bash
-cd ~/finscale
+cd ~/FinscaleNvidiaPlatform
 git pull --ff-only
 git status
 ```
@@ -256,7 +285,7 @@ The workflow generates two separate datasets:
 | `data/train_raw.jsonl` | Financial risk records used for training |
 | `data/eval_raw.jsonl` | Independent held-out evaluation records |
 
-The initial workflow reserves AMZN and XOM disclosures for the held-out evaluation dataset.
+The generator selects held-out tickers deterministically from the available input tickers using random seed 7. It does not guarantee AMZN or XOM; inspect the generated datasets to confirm the actual split.
 
 The generated records contain ticker, excerpt, and label information.
 
@@ -396,10 +425,7 @@ The evaluation compares:
 
 To measure generalization, FinScale maintains a separate evaluation dataset containing previously reserved company disclosures.
 
-The initial held-out companies are:
-
-- Amazon (AMZN)
-- Exxon Mobil (XOM)
+The held-out tickers depend on the available input files and the generator's seeded company split.
 
 These records are maintained separately in:
 
@@ -430,7 +456,7 @@ python -u evaluate.py \
   --out-dir out
 ```
 
-**Important:** The held-out company evaluation is a separate evaluation stage from the internal test split. Preserve the results independently and verify that AMZN and XOM do not appear in the training data.
+**Important:** The held-out company evaluation is a separate evaluation stage from the internal test split. Preserve the results independently and verify that no held-out ticker appears in the training data.
 
 ## Initial NVIDIA Experiment Results
 
@@ -456,7 +482,7 @@ These results demonstrate improved structured output generation following LoRA f
 
 The initial results are directional and should not be considered production-level performance.
 
-The held-out AMZN/XOM evaluation must be completed and reported independently before drawing conclusions about generalization.
+The held-out company evaluation must be completed and reported independently before drawing conclusions about generalization.
 
 ## Experiment Artifacts and Reproducibility
 
@@ -535,7 +561,7 @@ Do not commit Hugging Face tokens, SEC API credentials, or other private credent
 
 ## Project Repository
 
-GitHub: [(https://github.com/haranadhar/FinscaleNvidiaPlatform)]
+GitHub: https://github.com/haranadhar/FinscaleNvidiaPlatform
 
 ## Data and Licensing
 
