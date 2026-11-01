@@ -1,9 +1,13 @@
-# FinScale shared dependencies (Lambda Labs / RunPod)
-transformers>=4.45,<5
-peft>=0.13
-accelerate>=1.0
-datasets>=3.0
-safetensors>=0.4
+# CUDA PyTorch must already be installed in the Lambda Labs / RunPod image.
+# Tested-version targets from the Lambda Labs NVIDIA workflow; RunPod smoke test still required.
+numpy==1.26.4
+huggingface-hub==0.36.2
+tokenizers==0.20.3
+transformers==4.46.3
+datasets==3.3.2
+peft==0.13.2
+accelerate==1.3.0
+safetensors>=0.4,<1
 sentencepiece
 requests
 beautifulsoup4
