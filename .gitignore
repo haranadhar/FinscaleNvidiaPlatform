@@ -3,3 +3,12 @@ shared/
 .env
 *.env-secrets
 *user-secrets*
+
+.venv/
+__pycache__/
+*.pyc
+.cache/
+data/
+out/
+*.log
+.ipynb_checkpoints/
