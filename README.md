@@ -1,141 +1,60 @@
-# FinscaleNvidiaPlatform
-# FinScale: Financial Risk Classification Using NVIDIA GPU and LoRA Fine-Tuning
+# FinScale — Financial Risk Classification on NVIDIA GPUs
 
-## Overview
+Fine-tune **Qwen/Qwen2.5-3B-Instruct** with LoRA using PyTorch, Transformers and PEFT, and compare base versus fine-tuned model performance on financial risk disclosures. The same code supports **Lambda Labs** and **RunPod** NVIDIA GPU instances.
 
-**FinScale** is an AI-powered financial risk classification project that fine-tunes the Qwen2.5-3B-Instruct large language model (LLM) using Low-Rank Adaptation (LoRA) to identify and classify financial risks from corporate financial disclosures and SEC filings.
+> **Status:** Code and setup instructions have been updated, but an end-to-end RunPod GPU training run has **not** been verified. The original Lambda Labs A100 experiment reported 60% vs 100% valid JSON and 30% vs 40% category accuracy (base vs fine-tuned); these are preliminary internal-test results, not production benchmarks.
 
-The project leverages NVIDIA GPU acceleration, PyTorch, Hugging Face Transformers, and Parameter-Efficient Fine-Tuning (PEFT) to classify financial disclosures into structured JSON outputs.
-
-The classification framework identifies financial risk categories, severity levels, supporting evidence, and explanations.
-
-The project is designed to evaluate the effectiveness of domain-specific LLM fine-tuning for financial risk analysis, with a focus on classification accuracy, structured output reliability, and generalization across previously unseen companies.
-
-### Key Capabilities
-
-- Financial risk identification from SEC EDGAR filings.
-- Automated financial disclosure labeling using Qwen2.5-7B-Instruct.
-- LoRA-based fine-tuning of Qwen2.5-3B-Instruct.
-- NVIDIA GPU-accelerated training using PyTorch and PEFT.
-- Structured JSON generation with category, severity, evidence, and explanation.
-- Base model versus fine-tuned model evaluation.
-- Independent evaluation using held-out company disclosures.
-- Training metrics, evaluation reports, and experiment reproducibility.
-
-## Architecture and Technology Stack
-
-### Model Architecture
-
-| Component | Technology |
-|---|---|
-| Base LLM | Qwen2.5-3B-Instruct |
-| Data Labeling Model | Qwen2.5-7B-Instruct |
-| Fine-Tuning Approach | LoRA |
-| Training Framework | PyTorch |
-| Fine-Tuning Library | Hugging Face PEFT |
-| Model Framework | Hugging Face Transformers |
-| GPU Acceleration | NVIDIA CUDA |
-| Dataset Processing | Hugging Face Datasets |
-| GPU Environment | Lambda Labs |
-| Initial GPU Configuration | NVIDIA A100-SXM4-40GB |
-| Operating System | Ubuntu Linux |
-| Python | Python 3.10 |
-| Experiment Tracking | JSON metrics and training logs |
-
-### High-Level Workflow
-
-1. SEC EDGAR financial filing acquisition.
-2. Financial disclosure extraction and preprocessing.
-3. Automated financial risk labeling.
-4. Dataset validation and preparation.
-5. Training, validation, and internal test splitting.
-6. Qwen2.5-3B-Instruct LoRA fine-tuning.
-7. LoRA adapter generation and model evaluation.
-8. Independent held-out company evaluation.
-9. Performance comparison and experiment reporting.
-
-## Financial Risk Classification Categories
-
-FinScale currently supports the following eight financial risk categories:
-
-| Category | Description |
-|---|---|
-| market | Market fluctuations and financial market exposure |
-| credit | Credit exposure and counterparty risks |
-| liquidity | Liquidity and cash-flow risks |
-| operational | Operational disruptions and business risks |
-| regulatory_legal | Regulatory compliance and legal risks |
-| cybersecurity | Cybersecurity threats and data security risks |
-| supply_chain | Supply chain disruptions and dependencies |
-| other | Other financial and business risks |
-
-**Severity levels:** Low, Medium, High.
-
-### Expected Model Output
-
-The model generates structured JSON containing:
-
-- `category`
-- `severity`
-- `evidence`
-- `explanation`
-
-The evidence field identifies a supporting passage from the financial disclosure, while the explanation provides the reasoning behind the classification.
-
-## NVIDIA GPU Environment
-
-The initial NVIDIA implementation was executed using Lambda Labs GPU infrastructure.
-
-**Reference GPU configuration:**
-
-- GPU: NVIDIA A100-SXM4-40GB
-- GPU Memory: 40 GB
-- OS: Ubuntu Linux
-- Python: 3.10
-- Framework: PyTorch
-- CUDA: NVIDIA CUDA-enabled PyTorch environment
-
-The implementation uses the PyTorch/PEFT backend rather than the original Apple Silicon MLX backend.
-
-### Repository Structure
+## Repository structure
 
 ```text
-finscale/
-│
+FinscaleNvidiaPlatform/
 ├── train.py
 ├── evaluate.py
 ├── requirements.txt
-│
+├── runpod-start.sh
 ├── scripts/
 │   ├── download_edgar.py
 │   ├── make_data_nvidia.py
 │   ├── validate_data.py
-│   └── prepare_heldout.py
-│
+│   ├── prepare_heldout.py
+│   └── format_data.py
 ├── data/
-│   ├── train_raw.jsonl
-│   ├── eval_raw.jsonl
+│   ├── raw/                  # generated SEC text files
+│   ├── train_raw.jsonl       # generated, not committed
+│   ├── eval_raw.jsonl        # generated, not committed
 │   └── nvidia/
-│       ├── train.jsonl
-│       ├── valid.jsonl
-│       ├── test.jsonl
-│       └── heldout_test.jsonl
-│
+│       ├── train.jsonl      # generated by train.py
+│       ├── valid.jsonl      # generated by train.py
+│       ├── test.jsonl       # generated by train.py
+│       └── heldout_test.jsonl # generated by prepare_heldout.py
 └── out/
-    ├── adapters/
-    ├── metrics.json
-    ├── eval_results.json
-    ├── eval_results.md
-    └── train_peft.log
+    ├── adapters/            # generated by successful training
+    ├── metrics.json         # generated by successful training
+    ├── eval_results.json    # generated by evaluate.py
+    ├── eval_results.md      # generated by evaluate.py
+    └── train_peft.log       # generated by tee
 ```
 
-The validator and held-out conversion scripts are tracked in this repository. Generated datasets and model artifacts are not included.
+Git tracks the directory skeleton with `.gitkeep` files. It intentionally does **not** commit generated JSONL datasets, model adapters, checkpoints, or experiment outputs. **Do not create empty JSONL or fake adapter files to fill the tree.**
 
-## Lambda Labs and RunPod deployment
+## 1. Choose a GPU environment
 
-Both providers run the same `--backend peft` training and evaluation code. Use an NVIDIA GPU machine with a CUDA-enabled PyTorch image; the Lambda A100 40 GB is the reference baseline. GPU availability and memory differ by instance.
+- **RunPod:** Start a GPU Pod with a CUDA-enabled PyTorch image, ideally A100 40 GB to compare with the Lambda baseline. Attach a **Network Volume** mounted at `/workspace` if you need data and outputs to survive Pod deletion. Confirm your selected template has Python 3.10 or 3.11, CUDA-enabled PyTorch and enough disk space. A persistent network volume is recommended but not automatically provided.
+- **Lambda Labs:** Start a CUDA-enabled PyTorch NVIDIA GPU instance. A100-SXM4-40GB was used for the original experiment. Use a persistent disk/location for datasets and outputs as appropriate.
 
-**RunPod:** Create a GPU Pod with a PyTorch/CUDA template. For persistence, attach a Network Volume mounted at `/workspace` before cloning. Container-only storage may be lost when the Pod is removed. Store datasets, Hugging Face cache, adapters, checkpoints and results on persistent storage.
+**Both environments:** Check that the installed PyTorch build sees the GPU **before** installing dependencies:
+
+```bash
+nvidia-smi
+python3 -c 'import torch; print("PyTorch:",torch.__version__,"CUDA:",torch.version.cuda,"Available:",torch.cuda.is_available()); assert torch.cuda.is_available()'
+python3 --version
+```
+
+If CUDA is false, choose/fix the GPU image first. The requirements file intentionally does not install or replace PyTorch.
+
+## 2A. RunPod installation
+
+Open a terminal in your RunPod Pod. If you mounted persistent storage at `/workspace`:
 
 ```bash
 cd /workspace
@@ -146,7 +65,9 @@ bash runpod-start.sh
 source .venv/bin/activate
 ```
 
-**Lambda Labs:** Use the existing CUDA-enabled PyTorch installation, clone under your persistent working directory and run:
+If the repo already exists, use `cd /workspace/FinscaleNvidiaPlatform && git pull --ff-only origin main` instead of cloning. Note: `runpod-start.sh` assumes CUDA PyTorch is already installed and accessible to Python.
+
+## 2B. Lambda Labs installation
 
 ```bash
 git clone https://github.com/haranadhar/FinscaleNvidiaPlatform.git
@@ -154,196 +75,48 @@ cd FinscaleNvidiaPlatform
 python3 -m venv --system-site-packages .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+export USE_TF=0 USE_FLAX=0
 ```
 
-Check `nvidia-smi` and `python -c "import torch; print(torch.cuda.is_available())"` before training. The repository does not contain SEC filings, generated datasets or trained LoRA adapters; restore or generate those separately. `requirements.txt` intentionally does not install PyTorch, to preserve the provider's CUDA-compatible build.
-
-**Important implementation limitation:** The current `train.py` loads the base model without explicitly moving it to CUDA or configuring `device_map`. Verify actual GPU utilization before relying on the training command. A CUDA-compatible runtime alone does not guarantee GPU training.
-
-## Installation and Environment Setup
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/haranadhar/FinscaleNvidiaPlatform.git
-cd FinscaleNvidiaPlatform
-
-git status
-```
-
-For an existing repository:
-
-```bash
-cd ~/FinscaleNvidiaPlatform
-git pull --ff-only
-git status
-```
-
-### 2. Verify NVIDIA GPU and CUDA
-
-```bash
-nvidia-smi
-python3 --version
-
-python3 -c "import torch; print('PyTorch:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Not available')"
-```
-
-Verify that PyTorch detects the assigned NVIDIA GPU and CUDA is available.
-
-Do not reinstall PyTorch if the Lambda Labs image already provides a working CUDA-enabled installation.
-
-### 3. Create Python Virtual Environment
-
-```bash
-python3 -m venv --system-site-packages .venv
-source .venv/bin/activate
-
-python -m pip install --upgrade pip
-```
-
-The `--system-site-packages` option allows the virtual environment to access the existing CUDA-enabled PyTorch installation.
-
-### 4. Install Compatible Dependencies
-
-The following package combination was used to resolve compatibility issues during the NVIDIA implementation.
-
-```bash
-python -m pip install \
-  "numpy==1.24.4" \
-  "huggingface-hub==0.36.2" \
-  "tokenizers==0.20.3" \
-  "transformers==4.46.3" \
-  "datasets==3.3.2" \
-  "peft" \
-  "accelerate" \
-  "safetensors" \
-  "pillow" \
-  "jinja2>=3.1.0"
-```
-
-Disable optional TensorFlow and Flax integrations for the PyTorch training workflow:
-
-```bash
-export USE_TF=0
-export USE_FLAX=0
-```
-
-Validate dependencies:
+For an existing checkout, `git pull --ff-only origin main`. In both environments verify the installed stack:
 
 ```bash
 python -m pip check
+python -c 'import torch, transformers, datasets, peft; print(torch.cuda.is_available(), torch.cuda.get_device_name(0)); print("Transformers:",transformers.__version__)'
+python -m compileall -q train.py evaluate.py scripts
 ```
 
-Verify imports and CUDA:
+**Dependency note:** The pinned package versions target the previous Lambda Labs environment, but have not been tested on every RunPod image. If `pip check` fails, stop and resolve the image-specific conflict rather than blindly upgrading PyTorch. The training code now explicitly moves the model to CUDA and selects BF16 if supported, otherwise FP16.
+
+## 3. Acquire or restore financial disclosure data
+
+If you already have `data/train_raw.jsonl` and `data/eval_raw.jsonl` from Lambda Labs, transfer those files to the same relative paths on RunPod. This is the fastest way to reproduce the experiment. They are **not** stored in GitHub.
+
+To regenerate from SEC EDGAR:
 
 ```bash
-python -c "import torch, transformers, datasets; from transformers import Trainer, TrainingArguments; print('CUDA:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0)); print('Transformers:', transformers.__version__); print('Datasets:', datasets.__version__)"
-```
-
-## Data Acquisition and Preparation
-
-### 1. SEC EDGAR Financial Disclosures
-
-FinScale uses financial disclosure text obtained from SEC EDGAR filings.
-
-The SEC downloader is available at:
-
-```text
-scripts/download_edgar.py
-```
-
-Before execution, configure the User-Agent with an appropriate application identification and valid contact email.
-
-Inspect the supported options:
-
-```bash
-python scripts/download_edgar.py --help
-```
-
-Follow SEC access guidelines and request-rate limits.
-
-### 2. Financial Risk Data Generation
-
-The NVIDIA-compatible data-generation workflow uses Qwen2.5-7B-Instruct to generate financial risk labels from SEC filing excerpts.
-
-The data-generation helper is:
-
-```text
-scripts/make_data_nvidia.py
-```
-
-Execute:
-
-```bash
+# First review scripts/download_edgar.py and set an appropriate SEC User-Agent.
+python scripts/download_edgar.py
 python -u scripts/make_data_nvidia.py
 ```
 
-The workflow generates two separate datasets:
+The second command loads **Qwen2.5-7B-Instruct**, which needs substantial GPU memory and downloads model weights. The generator shuffles available company tickers with seed 7 and reserves at least two companies for held-out evaluation; **AMZN/XOM are not guaranteed** to be held out. The raw SEC downloader can fail or skip companies due to network/access/filing changes.
 
-| Dataset | Purpose |
-|---|---|
-| `data/train_raw.jsonl` | Financial risk records used for training |
-| `data/eval_raw.jsonl` | Independent held-out evaluation records |
-
-The generator selects held-out tickers deterministically from the available input tickers using random seed 7. It does not guarantee AMZN or XOM; inspect the generated datasets to confirm the actual split.
-
-The generated records contain ticker, excerpt, and label information.
-
-### 3. Validate Generated Data
-
-Validate the JSONL records before model training.
+Validate the generated or transferred datasets:
 
 ```bash
 python scripts/validate_data.py
+python scripts/prepare_heldout.py
 ```
 
-Validation includes:
+The validator checks label fields and ticker overlap between raw training and held-out files. The converter writes `data/nvidia/heldout_test.jsonl` using the same `train.py` chat schema expected by `evaluate.py`.
 
-- JSON structure and record integrity.
-- Required ticker, excerpt, and label fields.
-- Classification category validation.
-- Severity validation.
-- Evidence and explanation availability.
-- Dataset record counts and company tickers.
-
-Ensure that held-out companies remain separate from the training dataset.
-
-## Model Fine-Tuning Using NVIDIA GPU
-
-### 1. Training Configuration
-
-FinScale fine-tunes Qwen2.5-3B-Instruct using LoRA through the PyTorch/PEFT backend.
-
-The initial NVIDIA training configuration:
-
-| Parameter | Configuration |
-|---|---|
-| Base Model | Qwen/Qwen2.5-3B-Instruct |
-| Backend | PyTorch / PEFT |
-| Fine-Tuning | LoRA |
-| Epochs | 1 |
-| Batch Size | 1 |
-| Maximum Sequence Length | 2048 |
-| Learning Rate | 1e-5 |
-| LoRA Rank | 8 |
-| LoRA Alpha | 16 |
-| Evaluation Steps | 25 |
-
-### 2. Execute Training
-
-Activate the Python environment:
+## 4. Train Qwen2.5-3B-Instruct with PEFT/LoRA
 
 ```bash
-cd ~/finscale
 source .venv/bin/activate
-
-export USE_TF=0
-export USE_FLAX=0
-```
-
-Execute GPU-accelerated training:
-
-```bash
+export USE_TF=0 USE_FLAX=0
+mkdir -p out
 python -u train.py \
   --backend peft \
   --input data/train_raw.jsonl \
@@ -359,51 +132,13 @@ python -u train.py \
   --out-dir out 2>&1 | tee out/train_peft.log
 ```
 
-Monitor GPU utilization:
+Training automatically creates `data/nvidia/train.jsonl`, `valid.jsonl`, `test.jsonl`, `out/adapters/` and `out/metrics.json`. Monitor `nvidia-smi` in another terminal. For reliable pipeline exit detection in an interactive shell, run `set -o pipefail` before the training command.
 
-```bash
-nvidia-smi
-```
+**Important:** `train.py` currently makes a category-stratified **record-level** internal train/validation/test split (seed 42). The separate `eval_raw.jsonl` is a **company-level held-out** evaluation set. Keep these evaluations distinct.
 
-Inspect training logs:
+## 5. Evaluate the base and LoRA models
 
-```bash
-tail -n 80 out/train_peft.log
-```
-
-### 3. Verify LoRA Adapter Generation
-
-After training completes, verify the generated adapter files:
-
-```bash
-find out/adapters -maxdepth 2 -type f
-```
-
-Expected artifacts:
-
-```text
-out/adapters/
-├── adapter_config.json
-├── adapter_model.safetensors
-├── tokenizer_config.json
-└── tokenizer.json
-```
-
-Review training metrics:
-
-```bash
-cat out/metrics.json
-```
-
-## Model Evaluation
-
-FinScale evaluates the original base model against the fine-tuned model to measure the impact of domain-specific financial risk training.
-
-### 1. Internal Test Dataset Evaluation
-
-The internal test dataset is generated from the training source using the project's data-splitting workflow.
-
-Execute:
+Internal test:
 
 ```bash
 python -u evaluate.py \
@@ -411,41 +146,10 @@ python -u evaluate.py \
   --model Qwen/Qwen2.5-3B-Instruct \
   --adapter out/adapters \
   --test data/nvidia/test.jsonl \
-  --out-dir out
+  --out-dir out/internal
 ```
 
-The evaluation compares:
-
-- Valid JSON generation.
-- Financial risk category accuracy.
-- Category macro-F1 score.
-- Severity classification accuracy.
-
-### 2. Held-Out Company Evaluation
-
-To measure generalization, FinScale maintains a separate evaluation dataset containing previously reserved company disclosures.
-
-The held-out tickers depend on the available input files and the generator's seeded company split.
-
-These records are maintained separately in:
-
-```text
-data/eval_raw.jsonl
-```
-
-Convert the held-out raw JSONL records into the chat-formatted evaluation schema:
-
-```bash
-python scripts/prepare_heldout.py
-```
-
-This generates:
-
-```text
-data/nvidia/heldout_test.jsonl
-```
-
-Run the independent evaluation:
+Held-out company test:
 
 ```bash
 python -u evaluate.py \
@@ -453,124 +157,37 @@ python -u evaluate.py \
   --model Qwen/Qwen2.5-3B-Instruct \
   --adapter out/adapters \
   --test data/nvidia/heldout_test.jsonl \
-  --out-dir out
+  --out-dir out/heldout
 ```
 
-**Important:** The held-out company evaluation is a separate evaluation stage from the internal test split. Preserve the results independently and verify that no held-out ticker appears in the training data.
+Outputs are saved separately as `eval_results.json` and `eval_results.md` in each output directory. Both evaluations load the base model and adapter; ensure enough free GPU memory. If adapters do not exist yet, **do not run evaluation**.
 
-## Initial NVIDIA Experiment Results
+## 6. Troubleshooting
 
-The following results were observed during the initial NVIDIA GPU implementation using the internal test dataset.
+| Symptom | Action |
+|---|---|
+| `torch.cuda.is_available() == False` | Fix the GPU Pod/image and CUDA-enabled PyTorch first. |
+| `ModuleNotFoundError: torch` | Choose a RunPod/Lambda image with CUDA PyTorch preinstalled; the venv inherits system packages. |
+| Dependency conflict / `pip check` error | Inspect the actual Python/PyTorch versions; do not overwrite CUDA PyTorch indiscriminately. |
+| CUDA out of memory | Use a larger GPU, reduce sequence length, or reduce batch size; 7B labeling needs more memory than a small inference task. |
+| `data/train_raw.jsonl` missing | Transfer the Lambda dataset or run SEC download and 7B labeling first. |
+| `out/adapters/adapter_config.json` missing | Training did not finish; check `out/train_peft.log`. |
+| Evaluation results overwritten | Use separate `--out-dir out/internal` and `--out-dir out/heldout`. |
+| Files vanish after RunPod termination | Use a mounted persistent Network Volume and keep the repo/data/cache/output on it. |
 
-### Base Model vs. Fine-Tuned Model
+## 7. Experiment notes
 
-| Evaluation Metric | Base Model | Fine-Tuned Model |
+The initial Lambda Labs A100 internal evaluation reported:
+
+| Metric | Base | Fine-tuned |
 |---|---:|---:|
 | Valid JSON | 60.0% | 100.0% |
-| Category Accuracy | 30.0% | 40.0% |
-| Category Macro-F1 | 0.262 | 0.266 |
-| Severity Accuracy | 65.0% | 65.0% |
+| Category accuracy | 30.0% | 40.0% |
+| Category macro-F1 | 0.262 | 0.266 |
+| Severity accuracy | 65.0% | 65.0% |
 
-### Results Interpretation
+These are preliminary small-sample results. Fine-tuning improved structured output reliability, while category and severity performance require more work. No RunPod benchmark is claimed.
 
-- **Structured output reliability:** Valid JSON generation improved from 60% to 100%.
-- **Category classification:** Accuracy improved from 30% to 40%.
-- **Category Macro-F1:** Increased from 0.262 to 0.266, indicating limited improvement across risk categories.
-- **Severity classification:** Accuracy remained unchanged at 65%.
+## Security and responsible usage
 
-These results demonstrate improved structured output generation following LoRA fine-tuning. However, classification performance requires further optimization and validation.
-
-The initial results are directional and should not be considered production-level performance.
-
-The held-out company evaluation must be completed and reported independently before drawing conclusions about generalization.
-
-## Experiment Artifacts and Reproducibility
-
-Each experiment should retain the following artifacts:
-
-```text
-experiment/
-├── package_versions.txt
-├── train.log
-├── train_metrics.json
-├── internal_test_results.json
-├── internal_test_results.md
-├── heldout_results.json
-├── heldout_results.md
-└── README.md
-```
-
-Capture package versions:
-
-```bash
-python -m pip freeze > out/package_versions.txt
-```
-
-Record the following information for every experiment:
-
-- GPU model and configuration.
-- Base model identifier.
-- Dataset version and record counts.
-- Training configuration and LoRA parameters.
-- Python and dependency versions.
-- Training logs and evaluation metrics.
-- Internal test and held-out evaluation results.
-
-Do not commit Hugging Face tokens, SEC API credentials, or other private credentials to GitHub.
-
-## Troubleshooting
-
-| Issue | Resolution |
-|---|---|
-| CUDA unavailable | Verify the Lambda GPU instance and CUDA-enabled PyTorch installation. |
-| NumPy/Transformers import errors | Use the compatible dependency versions specified above. |
-| `tf_keras` missing | Set `USE_TF=0` and `USE_FLAX=0`. |
-| `BucketNotFoundError` | Verify compatibility between Datasets and Hugging Face Hub. |
-| `mlx_lm` missing | Explicitly select `--backend peft`. |
-| `adapter_config.json` missing | Verify successful training and adapter generation before evaluation. |
-| SyntaxError in notebook | Execute shell commands using `!` or `%%bash`, or use a terminal. |
-| Training process failure | Inspect `out/train_peft.log` and GPU utilization. |
-
-**Important:** MLX is intended for Apple Silicon execution. All NVIDIA GPU training and evaluation operations must explicitly use the PEFT backend.
-
-## Future Roadmap
-
-### Model and Classification Improvements
-
-- Expand financial disclosure datasets.
-- Improve underrepresented financial risk categories.
-- Increase human-reviewed training labels.
-- Experiment with different LoRA ranks and learning rates.
-- Extend training epochs and evaluate larger datasets.
-- Improve category-level precision, recall, and macro-F1.
-
-### NVIDIA GPU and Distributed Training
-
-- Extend the current single-node NVIDIA GPU implementation.
-- Evaluate NVIDIA GB10 Blackwell systems.
-- Explore multi-node distributed training using PyTorch and NCCL.
-- Investigate orchestration through NVIDIA Fuzzball.
-- Measure distributed training performance and scaling efficiency.
-
-### AI Model Deployment
-
-- Develop an inference-serving architecture.
-- Explore OpenAI-compatible API endpoints.
-- Integrate financial risk classification into downstream financial analytics workflows.
-- Evaluate scalability and inference performance.
-
-## Project Repository
-
-GitHub: https://github.com/haranadhar/FinscaleNvidiaPlatform
-
-## Data and Licensing
-
-The project uses public, non-proprietary financial disclosures and generated classification examples.
-
-The Qwen2.5-3B-Instruct and Qwen2.5-7B-Instruct models are subject to their respective licensing terms published on Hugging Face.
-
-SEC EDGAR data usage must comply with applicable SEC access policies and requirements.
-
----
-
-**FinScale — NVIDIA GPU-Accelerated Financial Risk Classification Using Large Language Models and Parameter-Efficient Fine-Tuning.**
+Do not commit Hugging Face access tokens, personal data, generated adapters or private datasets. Use a properly identified SEC User-Agent and respect SEC rate limits. Check model licensing and dataset provenance before redistribution.
