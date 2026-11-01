@@ -17,7 +17,8 @@ FinscaleNvidiaPlatform/
 │   ├── make_data_nvidia.py
 │   ├── validate_data.py
 │   ├── prepare_heldout.py
-│   └── format_data.py
+│   ├── format_data.py
+│   └── plot_evaluation.py
 ├── data/
 │   ├── raw/                  # generated SEC text files
 │   ├── train_raw.jsonl       # generated, not committed
@@ -191,3 +192,28 @@ These are preliminary small-sample results. Fine-tuning improved structured outp
 ## Security and responsible usage
 
 Do not commit Hugging Face access tokens, personal data, generated adapters or private datasets. Use a properly identified SEC User-Agent and respect SEC rate limits. Check model licensing and dataset provenance before redistribution.
+
+## 8. Visualize evaluation results (RunPod held-out experiment)
+
+The RunPod held-out evaluation on 49 AMZN/XOM records completed with the following reported results:
+
+| Metric | Base Qwen2.5-3B | Fine-tuned LoRA |
+|---|---:|---:|
+| Valid JSON | 53.1% | 100.0% |
+| Category accuracy | 55.1% | 53.1% |
+| Category macro-F1 | 0.286 | 0.328 |
+| Severity accuracy | 57.1% | 69.4% |
+
+These results were reported from the RunPod terminal; the underlying generated evaluation JSON is **not committed**. Category accuracy decreased slightly, while JSON compliance, macro-F1 and severity accuracy improved. This is a small held-out sample, not a statistically validated benchmark.
+
+To create a grouped bar chart from the **actual** generated JSON (rather than hard-coded numbers):
+
+```bash
+cd /workspace/FinscaleNvidiaPlatform
+source .venv/bin/activate
+python -m pip install matplotlib
+python scripts/plot_evaluation.py --results out/heldout/eval_results.json
+ls -lh out/heldout/charts/
+```
+
+The script saves `out/heldout/charts/finscale_comparison.png` (300 DPI) and `out/heldout/charts/finscale_comparison.pdf` (vector PDF). It reads `base` and `fine_tuned` from `eval_results.json`, scales rates to percentages, and shows macro-F1 on a 0–100 chart scale while retaining its original decimal values in bar labels. These generated charts are ignored by Git and remain on your RunPod volume. Use `--output-dir` to change their location.
