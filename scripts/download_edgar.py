@@ -47,11 +47,11 @@ def main():
     else: tickers=a.tickers or DEFAULT_TICKERS
     tickers=list(dict.fromkeys(t.upper() for t in tickers))
     if not tickers: ap.error("No tickers were provided")
-    print(f"Requested {len(tickers)} companies: {
+    print(f"Requested {len(tickers)} companies: {', '.join(tickers)}")
     if not ua or "@" not in ua: ap.error("Set SEC_USER_AGENT to a truthful contact identity, e.g. 'Research Name contact@example.org'; SEC requires a declared User-Agent")
-    try: tickers=json.loads(fetch(TICKER_URL,ua))
+    try: ticker_directory=json.loads(fetch(TICKER_URL,ua))
     except (HTTPError,URLError,TimeoutError) as e: sys.exit(f"SEC ticker lookup failed: {e}")
-    lookup={str(v["ticker"]).upper():str(v["cik_str"]).zfill(10) for v in tickers.values()}
+    lookup={str(v["ticker"]).upper():str(v["cik_str"]).zfill(10) for v in ticker_directory.values()}
     a.output.parent.mkdir(parents=True,exist_ok=True); count=0
     with a.output.open("w",encoding="utf-8") as out:
         for ticker in tickers:
