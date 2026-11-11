@@ -6,10 +6,70 @@
 
 > **Existing successful run (previous Lambda A100 40GB):** NVIDIA API teacher `nvidia/nemotron-3.5-lightning-30b-a3b` generated **166 train + 18 validation = 184 examples**. This run is **not** a completed 30B student LoRA training job. **These JSONL files are NOT in GitHub. Back up `data/raw/` and `data/processed/` from the old VM before terminating it.** If the old VM is already gone and no backup exists, regenerate the dataset from SEC EDGAR and NVIDIA API on the replacement VM.
 
+## GPU choices for 30B and the DGX Spark hackathon
+
+**Do not confuse GPU architecture with memory topology.** The hackathon's DGX Spark uses the **GB10 Grace Blackwell Superchip** with **128GB unified system memory** and an **ARM64 CPU**. A cloud **RTX PRO 6000 Blackwell 96GB** is also Blackwell, but uses **dedicated GDDR7 VRAM** and typically an **x86_64 host**; the two are not performance- or binary-equivalent. DGX Spark's unified memory is not 128GB of conventional dedicated GPU VRAM. Cross-architecture Docker images and compiled CUDA extensions may need separate ARM64 and x86_64 builds.
+
+| GPU / configuration | Memory | Guidance for FinScale Nemotron 3 Nano 30B |
+| --- | --- | --- |
+| **2 × A100 80GB on one VM** | 80GB per GPU; 160GB aggregate (not pooled) | **Preferred practical Lambda choice** for the NVIDIA-documented two-80GB LoRA topology, subject to supported image, parallelism and actual availability. |
+| **2 × RTX PRO 6000 Blackwell 96GB on one VM** | 96GB per GPU; 192GB aggregate (not pooled) | **Preferred Blackwell cloud comparison** when available on RunPod; validate NCCL/peer-to-peer links, CUDA/NeMo support and EP=2. Do not assume same performance as GB10. |
+| **1 × RTX PRO 6000 Blackwell 96GB** | 96GB dedicated | Useful for Blackwell inference and quantized experiments; **not verified** for the published two-GPU BF16 LoRA recipe. |
+| **1 × RTX 6000 Ada 48GB** | 48GB dedicated | Not suitable for the current unsharded BF16 30B training recipe; use only with a separately validated quantized/offload approach. |
+| **1 × A100 40GB** | 40GB dedicated | Previous VM; good for SEC/API dataset preparation, **not** the existing BF16 30B LoRA recipe. |
+| **1–2 × DGX Spark GB10** | 128GB unified per device (typical) | Hackathon hardware; optimize for ARM64, memory bandwidth, inter-node communication, and a separately validated quantized/PEFT path. Not a direct reproduction of the A100 EP=2 recipe. |
+
+**No H100 is required or recommended for this plan.** NVIDIA's published Nano3 30B LoRA reference is a **two-80GB** configuration with expert parallelism **EP=2**; hardware fit is a prerequisite, **not** a guarantee that the current FinScale wrapper is runnable. Do not add VRAM across GPUs and assume a single process can use the sum. Verify supported device count, CUDA architecture, distributed training topology, RAM, disk, and network before renting.
+
+**Provider discovery:** Lambda GPU inventory/pricing: https://lambda.com/pricing ; RunPod GPU inventory/pricing: https://www.runpod.io/gpu-models . Listings are not a guarantee of live availability. RTX **6000 Ada (48GB)**, older **Quadro RTX 6000 (24GB)**, and **RTX PRO 6000 Blackwell (96GB)** are **different products**.
+
+### Record hardware and portability baseline
+
+Run on **each** Lambda/RunPod/DGX Spark machine, and save the output with your benchmark:
+
+```bash
+uname -m
+cat /etc/os-release | head -n 5
+nvidia-smi -L
+nvidia-smi --query-gpu=index,name,memory.total,memory.free,compute_cap --format=csv || nvidia-smi
+nvidia-smi topo -m
+nvcc --version || true
+python3 - <<'PY'
+import platform
+print("CPU architecture:", platform.machine())
+try:
+    import torch
+    print("torch:", torch.__version__, "CUDA:", torch.version.cuda)
+    print("CUDA available:", torch.cuda.is_available())
+    for i in range(torch.cuda.device_count()):
+        print(i, torch.cuda.get_device_name(i))
+except ImportError:
+    print("torch not installed in current Python environment")
+PY
+```
+
+For 2-GPU jobs, also verify `nvidia-smi topo -m` and run NCCL/distributed smoke tests **before** training. Two GPUs on different pods or instances are **not** automatically equivalent to two GPUs inside one machine.
+
+## Previously encountered issues and verified fixes
+
+| Problem observed on old Lambda A100 40GB | Cause | Correct action |
+| --- | --- | --- |
+| `git clone ... /workspace/Nemotron` → `Permission denied` | Lambda `ubuntu` could not create directories under RunPod-style `/workspace` | Clone official NVIDIA repo into **`$HOME/Nemotron`**. |
+| `cd ~/FinscaleNvidiaPlatform` → no directory | NVIDIA repo had been cloned, but user's FinScale repo had not | Clone **both** repos separately into `$HOME`. |
+| `scripts/run_nemotron_sft.sh: No such file` | Executing from the official NVIDIA repo, not FinScale | `cd "$HOME/FinscaleNvidiaPlatform"` before running project scripts. |
+| `VIRTUAL_ENV ... does not match project environment` | FinScale venv active while running `uv` in NVIDIA repo | `deactivate 2>/dev/null || true; unset VIRTUAL_ENV` before NVIDIA `uv sync`. |
+| `Not launching: set up W&B Packed-Parquet SFT artifact and env.toml` | Training wrapper is intentionally guarded; the recipe integration is incomplete | Prepare real Nano3 packed SFT artifact, checkpoint, valid executor/profile and verified LoRA settings. **Do not merely set the bypass flag.** |
+| `SyntaxError: unterminated string literal` in `download_edgar.py` | Broken generated `print` line; SEC ticker directory also overwrote ticker list | Fixed on `Nemotron` branch (commit `f420c13`). On new VM use latest branch and `python -m py_compile scripts/*.py`. |
+| Confusion about `--workers 2` with one GPU | Workers are concurrent NVIDIA **hosted API requests** | `--workers 2` works on a single GPU/CPU VM; it does **not** require two GPUs. |
+| A100 40GB and 30B BF16 LoRA | ~60GB base BF16 weights before training overhead, and official two-GPU topology | Use **2 × A100 80GB** or investigate **2 × RTX PRO 6000 Blackwell 96GB**, with recipe validation. |
+| Replacing VM risks losing 184 labeled examples | GitHub excludes `data/raw` and `data/processed` | Back up **166 train + 18 validation**, plus raw EDGAR JSONL, off the VM **before termination**. |
+
+**Previously completed milestone:** 30-company EDGAR extraction and NVIDIA-hosted `nvidia/nemotron-3.5-lightning-30b-a3b` teacher generation produced **166 train / 18 validation / 184 total**. **This was data generation, not local 30B fine-tuning.**
+
 ## Hardware guidance
 
 - **Previous:** single A100 40GB (suitable for preparation/teacher API labeling, *not* the published BF16 Nano3 30B LoRA recipe).
-- **Recommended Lambda starting configuration:** **two 80GB GPUs** (e.g. **2 × A100 80GB** or **2 × H100 80GB**, if offered). The NVIDIA Nemotron 3 Nano NeMo Helix reference documents **LoRA: 2 × 80GB, TP=1, EP=2, PP=1**. This is a reference topology, not a guarantee that every stock Lambda image runs the recipe unchanged.
+- **Recommended Lambda starting configuration:** **2 × A100 80GB on Lambda** or **2 × RTX PRO 6000 Blackwell 96GB on RunPod**, subject to availability and validation. No H100 is needed. The NVIDIA Nemotron 3 Nano NeMo Helix reference documents **LoRA: 2 × 80GB, TP=1, EP=2, PP=1**. This is a reference topology, not a guarantee that every stock Lambda image runs the recipe unchanged.
 - **Do not confuse teacher vs. student:** API teacher = **Nemotron 3.5 Lightning 30B-A3B**; locally fine-tuned student = **Nemotron 3 Nano 30B-A3B**. `--workers 2` controls concurrent NVIDIA hosted API calls, **not** GPU count.
 - Verify GPU devices, VRAM, storage, CUDA drivers, compatible training image, official recipe execution method, and costs before GPU training.
 
@@ -83,3 +143,17 @@ uv run nemotron nano3 sft --help
 - Data preparation originated from [Manish's FinScale branch](https://github.com/mkchoithani/finscale/tree/edgar-nemotron-runpod).
 
 **Reference model:** https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16.
+
+## Portable workflow: Lambda A100 / RunPod RTX PRO Blackwell / DGX Spark GB10
+
+The **portable artifacts** are FinScale Python code, SEC JSONL, labeled chat JSONL, evaluation definitions, and appropriately converted model adapters. The **non-portable parts** include compiled CUDA extensions, GPU-specific kernels, NCCL topology, image architecture and some training recipe settings.
+
+```bash
+# In the FinScale repo on ANY platform, after restoring the archive:
+python -m py_compile scripts/*.py
+python scripts/validate_edgar.py --strict
+wc -l data/processed/train.jsonl data/processed/val.jsonl
+# On a new instance, do NOT regenerate the labels unless backup is unavailable.
+```
+
+For the hackathon, measure separately: (1) model/adapter loading and inference on GB10, (2) single-node GPU utilization, (3) distributed communication across two GB10 nodes if supplied, and (4) the cloud training baseline. **Do not report cloud A100 throughput as DGX Spark performance.** Use model checkpoint and tokenizer compatibility checks before attempting adapter transfer.
