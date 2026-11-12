@@ -2,6 +2,8 @@
 
 **Branch:** `Nemotron` | **Student model:** `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` | **Dataset:** SEC EDGAR 10-K filings from a target universe of 30 US public companies.
 
+**GPUWerk DGX Spark GB10 (1×GB10, 128GB unified memory, 1TB shared storage):** **[GPUWERK_GB10.md](GPUWERK_GB10.md)** — GPUWerk SSH/container constraints, full system preflight, SEC restore/regeneration, device/process monitoring with `nvidia-smi dmon` and `pmon`, bounded GPU-compute benchmark, CSV collection, graph generation, and **30B Nano training readiness/gating**. Companion scripts: [`monitor_gpuwerk.py`](scripts/monitor_gpuwerk.py), [`benchmark_gpuwerk.py`](scripts/benchmark_gpuwerk.py), [`plot_gpuwerk.py`](scripts/plot_gpuwerk.py). **The 30B training recipe is still not yet fully wired; do not treat the GPU benchmark as a successful SFT run.**
+
 **Start here on Lambda Labs:** **[LAMBDA.md](LAMBDA.md)** — this now contains the full, ordered commands for (a) backing up the existing teacher-labeled dataset, (b) provisioning a replacement 2 × 80GB GPU VM, (c) restoring labeled JSONL data, and (d) checking the NVIDIA official Nano3 recipe prerequisites. **RunPod:** [RUNPOD.md](RUNPOD.md).
 
 > **Existing successful run (previous Lambda A100 40GB):** NVIDIA API teacher `nvidia/nemotron-3.5-lightning-30b-a3b` generated **166 train + 18 validation = 184 examples**. This run is **not** a completed 30B student LoRA training job. **These JSONL files are NOT in GitHub. Back up `data/raw/` and `data/processed/` from the old VM before terminating it.** If the old VM is already gone and no backup exists, regenerate the dataset from SEC EDGAR and NVIDIA API on the replacement VM.
