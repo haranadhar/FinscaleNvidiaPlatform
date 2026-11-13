@@ -1,0 +1,22 @@
+# Fuzzball v4 single-node GB10 smoke — EDIT image and GPU resource with staff.
+# Image must be ARM64 and include CUDA-compatible torch, python3, nvidia-smi.
+version: v4
+jobs:
+  gb10-preflight:
+    image:
+      uri: docker://REPLACE_WITH_ORGANIZER_ARM64_CUDA_IMAGE
+    script: |
+      #!/bin/sh
+      set -eu
+      date -u
+      hostname
+      uname -m
+      nvidia-smi -L
+      python3 -c 'import torch; print(torch.__version__,torch.version.cuda,torch.cuda.is_available())'
+    resource:
+      cpu:
+        cores: 4
+      memory:
+        size: 16GiB
+      devices:
+        nvidia.com/gpu: 1

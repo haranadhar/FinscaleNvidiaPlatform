@@ -1,0 +1,38 @@
+# Fuzzball v4 two-node NCCL probe, not Nemotron model training.
+# EDIT image; image must include PyTorch CUDA + git and allow code checkout.
+# GitHub access and internet from containers are NOT guaranteed.
+# For offline event clusters bake code into image at /opt/finscale or mount shared code.
+version: v4
+jobs:
+  finscale-two-gb10-nccl:
+    image:
+      uri: docker://REPLACE_WITH_ORGANIZER_ARM64_CUDA_PYTORCH_FINSCALE_IMAGE
+    env:
+      - MULTINODE_WRAPPER_FORWARD_STREAMS=1
+      - NCCL_DEBUG=INFO
+      - OMP_NUM_THREADS=4
+    script: |
+      #!/bin/sh
+      set -eu
+      . /multinode/generic-helper
+      echo "Fuzzball rank0 IP: $MULTINODE_NODE_IP"
+      exec_all - "$MULTINODE_NODE_IP" <<'EOF'
+      set -eu
+      cd /opt/finscale
+      echo "Node: $(hostname), Fuzzball rank: $RANK, master: $1"
+      python3 -m torch.distributed.run \
+        --nnodes=2 --nproc-per-node=1 --node-rank="$RANK" \
+        --master-addr="$1" --master-port=29500 \
+        scripts/nccl_multinode_proof.py
+      EOF
+    resource:
+      cpu:
+        cores: 8
+      memory:
+        size: 32GiB
+      devices:
+        nvidia.com/gpu: 1
+    multinode:
+      nodes: 2
+      implementation: generic
+      procs-per-node: 1

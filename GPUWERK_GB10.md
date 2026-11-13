@@ -1,4 +1,4 @@
-# GPUWerk — FinScale Nemotron 30B on a DGX Spark GB10
+> **Latest actual Nov 13 progress:** The user built and installed `mamba-ssm 2.3.2.post1` with four C++17→C++20 flag changes, built and tested `causal-conv1d 1.7.0`, downloaded all 13 Nemotron 30B safetensors shards (~59 GiB), and has 164 train/18 val FinScale rows. **First 512-token dataset sample has 0 supervised labels; do not train until fixed.** Follow [GB10_HACKATHON_RUNBOOK.md](GB10_HACKATHON_RUNBOOK.md) for exact tested progress and [FINSCALE_FUZZBALL_TWO_NODE.md](FINSCALE_FUZZBALL_TWO_NODE.md) for two-node proof. Earlier training-readiness statements below are historical.\n\n# GPUWerk — FinScale Nemotron 30B on a DGX Spark GB10
 
 **Target branch:** `Nemotron`  
 **Provider:** GPUWerk dedicated DGX Spark **tenant container** (not a VM)  
